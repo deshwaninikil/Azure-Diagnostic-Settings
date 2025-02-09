@@ -1,24 +1,36 @@
-# Connect to Azure using Automation Account identity
-Connect-AzAccount -Identity
+# Define file paths
+$BasePath = "C:\Users\lenovo\Desktop\Diagnostic"
+$PrevJsonFile = "$BasePath\PreviousDiagSettings.json"
+$CurrentJsonFile = "$BasePath\CurrentDiagSettings.json"
+$ChangeLogFile = "$BasePath\ChangeLog.txt"
 
-# Define file paths for previous and current diagnostic settings
-$PrevJsonFile = "C:\Temp\PreviousDiagSettings.json"
-$CurrentJsonFile = "C:\Temp\CurrentDiagSettings.json"
-$ChangeLogFile = "C:\Temp\ChangeLog.txt"  # File to track changes
+# Ensure directory exists
+if (!(Test-Path $BasePath)) {
+    New-Item -ItemType Directory -Path $BasePath -Force | Out-Null
+}
 
-# Get all Azure Subscriptions
+# Connect to Azure
+try {
+    $AzureLogin = Get-AzSubscription -ErrorAction Stop
+    Write-Host "Azure login verified."
+} catch {
+    Write-Host "Not logged into Azure. Attempting login..."
+    Connect-AzAccount | Out-Null
+}
+
+# Retrieve all Azure subscriptions
 $Subs = Get-AzSubscription
 $DiagResults = @()
 
+# Loop through subscriptions and fetch diagnostic settings
 foreach ($Sub in $Subs) {
     Set-AzContext -SubscriptionId $Sub.Id | Out-Null
     Write-Host "Processing Subscription: $($Sub.Name)"
 
     $Resources = Get-AzResource
-
     foreach ($res in $Resources) {
         $DiagSettings = Get-AzDiagnosticSetting -ResourceId $res.ResourceId -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-        
+
         foreach ($diag in $DiagSettings) {
             $item = [PSCustomObject]@{
                 ResourceName = $res.Name
@@ -36,65 +48,46 @@ foreach ($Sub in $Subs) {
     }
 }
 
-$DiagResults | ConvertTo-Json -Depth 10 | Set-Content -Path $CurrentJsonFile
+# Save current diagnostic settings
+$DiagResults | ConvertTo-Json -Depth 10 | Set-Content -Path $CurrentJsonFile -Force
 Write-Host "Current diagnostic settings saved to: $CurrentJsonFile"
 
-if (Test-Path $PrevJsonFile) {
-    $PreviousDiagResults = Get-Content -Path $PrevJsonFile | ConvertFrom-Json
-    $CurrentDiagResults = Get-Content -Path $CurrentJsonFile | ConvertFrom-Json
+# Check for previous JSON file
+if (!(Test-Path $PrevJsonFile)) {
+    Write-Host "No previous data found. Saving current data as baseline."
+    Copy-Item -Path $CurrentJsonFile -Destination $PrevJsonFile -Force
+    exit
+}
 
-    # Compare the previous and current data
-    $Changes = Compare-Object -ReferenceObject $PreviousDiagResults -DifferenceObject $CurrentDiagResults -Property ResourceName, DiagnosticSettingsName, StorageAccount, EventHub, Workspace, Metrics, Logs, Subscription, ResourceId -PassThru
+# Load previous and current data safely
+$PreviousDiagResults = if ((Get-Content -Path $PrevJsonFile -Raw) -ne "") { Get-Content -Path $PrevJsonFile -Raw | ConvertFrom-Json } else { @() }
+$CurrentDiagResults = if ((Get-Content -Path $CurrentJsonFile -Raw) -ne "") { Get-Content -Path $CurrentJsonFile -Raw | ConvertFrom-Json } else { @() }
 
-    # Process and log changes
-    $ChangeDetected = $false
+Write-Host "PreviousDiagResults Count: $($PreviousDiagResults.Count)"
+Write-Host "CurrentDiagResults Count: $($CurrentDiagResults.Count)"
+
+# Compare previous and current settings
+if ($PreviousDiagResults.Count -eq 0 -or $CurrentDiagResults.Count -eq 0) {
+    Write-Host "Skipping comparison: One or both JSON files are empty."
+} else {
+    $Changes = Compare-Object -ReferenceObject $PreviousDiagResults -DifferenceObject $CurrentDiagResults `
+        -Property ResourceName, DiagnosticSettingsName, StorageAccount, EventHub, Workspace, Metrics, Logs, Subscription, ResourceId -PassThru
+
     $ChangeLog = ""
-
     foreach ($change in $Changes) {
         $Action = switch ($change.SideIndicator) {
             "=>" { "Added" }
             "<=" { "Removed" }
             "==" { "Unchanged" }
         }
-        
         $ChangeLog += "$($change.ResourceName) - $($change.DiagnosticSettingsName): $Action`n"
-        $ChangeDetected = $true
     }
 
-    if ($ChangeDetected) {
-        Write-Host "Changes detected. Logging the changes."
-
-        # Write the changes to ChangeLog file
+    if ($ChangeLog) {
+        Write-Host "Changes detected. Logging changes."
         $ChangeLog | Out-File -FilePath $ChangeLogFile -Force
-
-        # Commit and push changes to GitHub
-        # Set GitHub repository and branch
-        $RepoPath = "C:/path/to/your/repo"  # GitHub repository path
-        $BranchName = "change-diagnostic-settings"  # Name of the branch
-
-        # Change directory to your repository
-        Set-Location -Path $RepoPath
-
-        # Create a new branch
-        git checkout -b $BranchName
-
-        # Add the changes (including the changelog and updated diagnostic settings)
-        git add .
-
-        # Commit changes
-        git commit -m "Detect and log changes in diagnostic settings"
-
-        # Push changes to GitHub
-        git push origin $BranchName
-
-        # Create a pull request using GitHub CLI
-        gh pr create --base main --head $BranchName --title "Detect Diagnostic Settings Changes" --body "This PR detects and logs changes in diagnostic settings."
-        
-        Write-Host "Changes pushed to GitHub and PR raised."
     }
-} else {
-    Write-Host "No previous data found. Saving current data as baseline."
 }
 
-# Save current data as the new previous data
+# Update previous settings file
 Copy-Item -Path $CurrentJsonFile -Destination $PrevJsonFile -Force

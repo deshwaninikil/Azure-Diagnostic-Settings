@@ -1,43 +1,34 @@
-name: Azure Diagnostic Settings Comparison
+# Build Name format
+name: $(TeamProject)_$(BuildDefinitionName)_$(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
 
-# Trigger the workflow on the following events:
-on:
-  schedule:
-    # Runs every day at midnight UTC
-    - cron: "0 0 * * *"
-  workflow_dispatch: # Allows manual trigger from GitHub UI
+# Variables
+variables:
+  AgentPool: "windows-latest"
+  service_connection: "ARM - TSE AZ Management Group"
 
-jobs:
-  run-script:
-    runs-on: windows-latest
+# Trigger (Manual)
+trigger: none
 
-    steps:
-      # Step 1: Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v2
+# Stages
+stages:
+  - stage: Create_Diagnostic_Settings_Json
+    displayName: "Create Diagnostic Settings Json"
 
-      # Step 2: Set up PowerShell environment
-      - name: Set up PowerShell
-        uses: actions/setup-powershell@v2
+    jobs:
+      - job: CreateDiagnosticSettingsJson
+        displayName: "Execute Diagnostic Settings Script"
+        pool:
+          vmImage: $(AgentPool)
 
-      # Step 3: Install Azure PowerShell module
-      - name: Install Azure PowerShell
-        run: |
-          Install-Module -Name Az -AllowClobber -Force -Scope CurrentUser
+        steps:
+          - checkout: self # Ensures the repo is available on the agent
 
-      # Step 4: Login to Azure using GitHub secrets (configure your Azure service principal in GitHub secrets)
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # Step 5: Run the PowerShell script (Detect-Diagnostic-Settings.ps1)
-      - name: Run Diagnostic Settings Script
-        run: |
-          pwsh ./Detect-Diagnostic-Settings.ps1
-
-      # Step 6: Create a PR if changes are detected (optional)
-      - name: Create Pull Request if changes detected
-        if: success() && steps.run-script.outputs.changes-detected == 'true' # If changes were detected in the script
-        run: |
-          gh pr create --base main --head ${{ github.actor }}:change-diagnostic-settings --title "Detect Diagnostic Settings Changes" --body "This PR detects and logs changes in diagnostic settings."
+          # Run the PowerShell script
+          - task: AzurePowerShell@5
+            displayName: "Run Diagnostic Settings Script"
+            inputs:
+              azureSubscription: $(service_connection)
+              ScriptPath: "$(Build.SourcesDirectory)/Detect-Diagnostic-Settings.ps1"
+              azurePowerShellVersion: LatestVersion
+              ScriptType: FilePath
+              errorActionPreference: "Stop"
