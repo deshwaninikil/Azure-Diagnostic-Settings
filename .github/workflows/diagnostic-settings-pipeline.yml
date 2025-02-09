@@ -4,7 +4,7 @@ name: $(TeamProject)_$(BuildDefinitionName)_$(SourceBranchName)_$(Date:yyyyMMdd)
 # Variables
 variables:
   AgentPool: "windows-latest"
-  service_connection: "ARM - TSE AZ Management Group"
+  service_connection: "ARM - TSE AZ Management Group" # Ensure this service connection is targeting your "Free Trial" subscription
 
 # Trigger (Manual)
 trigger: none
@@ -23,12 +23,12 @@ stages:
         steps:
           - checkout: self # Ensures the repo is available on the agent
 
-          # Run the PowerShell script
+          # Run the PowerShell script (Detect-Diagnostic-Settings.ps1)
           - task: AzurePowerShell@5
             displayName: "Run Diagnostic Settings Script"
             inputs:
-              azureSubscription: $(service_connection)
-              ScriptPath: "$(Build.SourcesDirectory)/Detect-Diagnostic-Settings.ps1"
-              azurePowerShellVersion: LatestVersion
-              ScriptType: FilePath
-              errorActionPreference: "Stop"
+              azureSubscription: $(service_connection) # Azure service connection to authenticate with the "Free Trial" subscription
+              ScriptPath: "$(Build.SourcesDirectory)/Detect-Diagnostic-Settings.ps1" # Path to the PowerShell script in the repository
+              azurePowerShellVersion: LatestVersion # Use the latest available Azure PowerShell version
+              ScriptType: FilePath # Specify that the script is a file path
+              errorActionPreference: "Stop" # Stop the pipeline execution if the script fails
