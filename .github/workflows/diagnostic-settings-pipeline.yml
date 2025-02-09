@@ -1,0 +1,43 @@
+name: Azure Diagnostic Settings Comparison
+
+# Trigger the workflow on the following events:
+on:
+  schedule:
+    # Runs every day at midnight UTC
+    - cron: "0 0 * * *"
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  run-script:
+    runs-on: windows-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # Step 2: Set up PowerShell environment
+      - name: Set up PowerShell
+        uses: actions/setup-powershell@v2
+
+      # Step 3: Install Azure PowerShell module
+      - name: Install Azure PowerShell
+        run: |
+          Install-Module -Name Az -AllowClobber -Force -Scope CurrentUser
+
+      # Step 4: Login to Azure using GitHub secrets (configure your Azure service principal in GitHub secrets)
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Step 5: Run the PowerShell script (Detect-Diagnostic-Settings.ps1)
+      - name: Run Diagnostic Settings Script
+        run: |
+          pwsh ./Detect-Diagnostic-Settings.ps1
+
+      # Step 6: Create a PR if changes are detected (optional)
+      - name: Create Pull Request if changes detected
+        if: success() && steps.run-script.outputs.changes-detected == 'true' # If changes were detected in the script
+        run: |
+          gh pr create --base main --head ${{ github.actor }}:change-diagnostic-settings --title "Detect Diagnostic Settings Changes" --body "This PR detects and logs changes in diagnostic settings."
