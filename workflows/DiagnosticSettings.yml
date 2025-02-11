@@ -1,22 +1,20 @@
-# Trigger the pipeline on pushes to the main branch.
+# 20250211.3 • Updated YAML for Diagnostic Settings Pipeline
+# File location: workflows/DiagnosticSettings.yml
+
 trigger:
   branches:
     include:
       - main
 
-# Use the latest Windows agent.
 pool:
   vmImage: "windows-latest"
 
 steps:
-  # Step 1: Checkout the code from your repository.
   - checkout: self
 
-  # Step 2: Run the PowerShell script using the AzurePowerShell task.
-  # Make sure you have created an Azure service connection in Azure DevOps with the name specified in azureSubscription.
   - task: AzurePowerShell@5
     displayName: "Run Diagnostic Settings PowerShell Script"
     inputs:
-      azureSubscription: "YourServiceConnectionName" # Replace with your service connection name.
-      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Adjust the path to where your script is located.
+      azureSubscription: "YourServiceConnectionName" # Replace with your actual Azure service connection name.
+      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Path relative to the repository root.
       azurePowerShellVersion: "LatestVersion"
