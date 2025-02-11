@@ -15,6 +15,6 @@ steps:
   - task: AzurePowerShell@5
     displayName: "Run Diagnostic Settings PowerShell Script"
     inputs:
-      azureSubscription: "YourServiceConnectionName" # Replace with your actual Azure service connection name.
+      azureSubscription: "Free Trial"
       ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Path relative to the repository root.
       azurePowerShellVersion: "LatestVersion"
