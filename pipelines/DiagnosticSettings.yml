@@ -1,55 +1,23 @@
-# Define Pipeline Name
-name: $(TeamProject)_$(BuildDefinitionName)_$(SourceBranchName)_$(Date:yyyyMMdd)$(Rev:.r)
+name: Deploy to Azure
 
-variables:
-  AgentPool: "windows-latest"
-  service_connection: "AD azure service"
+on:
+  push:
+    branches:
+      - main
 
-trigger: none
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-stages:
-  - stage: Create_Diagnostic_Settings_Json
-    displayName: Create Diagnostic Settings JSON
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    jobs:
-      - job: CreateDiagnosticSettingsJson
-        pool:
-          vmImage: $(AgentPool)
-
-        steps:
-          # Step 1: Check if the Previous Artifact Exists
-          - task: PowerShell@2
-            displayName: "Check if Previous Artifact Exists"
-            inputs:
-              targetType: "inline"
-              script: |
-                $artifactPath = "$(Build.ArtifactStagingDirectory)\DiagnosticsSettings"
-                if (!(Test-Path $artifactPath)) {
-                  Write-Host "##vso[task.setvariable variable=ArtifactExists;]false"
-                } else {
-                  Write-Host "##vso[task.setvariable variable=ArtifactExists;]true"
-                }
-
-          # Step 2: Download the previous JSON file (only if it exists)
-          - task: DownloadBuildArtifacts@0
-            displayName: "Download Previous Diagnostic Settings JSON (If Exists)"
-            condition: and(succeeded(), eq(variables['ArtifactExists'], 'true'))
-            inputs:
-              buildType: "current"
-              artifactName: "DiagnosticsSettings"
-              downloadPath: "$(Build.ArtifactStagingDirectory)"
-
-          # Step 3: Run PowerShell Script to Compare Settings
-          - task: AzurePowerShell@5
-            displayName: "Run Diagnostic Settings JSON"
-            inputs:
-              azureSubscription: $(service_connection)
-              ScriptPath: $(System.DefaultWorkingDirectory)/azure-devops/scripts/DiagnosticSettings.ps1
-              azurePowerShellVersion: LatestVersion
-
-          # Step 4: Publish the new JSON file for future runs
-          - task: PublishBuildArtifacts@1
-            displayName: "Save Current Diagnostic Settings JSON for Next Run"
-            inputs:
-              artifactName: "DiagnosticsSettings"
-              pathToPublish: "$(Build.ArtifactStagingDirectory)"
+      - name: Run PowerShell Script
+        shell: pwsh
+        run: |
+          .\scripts\DiagnosticSettings.ps1
