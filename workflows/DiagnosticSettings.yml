@@ -15,6 +15,6 @@ steps:
   - task: AzurePowerShell@5
     displayName: "Run Diagnostic Settings PowerShell Script"
     inputs:
-      azureSubscription: "Free Trial"
+      azureSubscription: "FreeTrial"
       ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Path relative to the repository root.
       azurePowerShellVersion: "LatestVersion"
