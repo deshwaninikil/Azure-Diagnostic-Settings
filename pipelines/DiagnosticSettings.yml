@@ -20,4 +20,4 @@ jobs:
       - name: Run PowerShell Script
         shell: pwsh
         run: |
-          .\scripts\DiagnosticSettings.ps1
+          .\scripts\Detect-Diagnostic-Settings.ps1
