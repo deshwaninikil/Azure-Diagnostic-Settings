@@ -1,5 +1,4 @@
 # 20250211.3 • Updated YAML for Diagnostic Settings Pipeline
-# File location: workflows/DiagnosticSettings.yml
 
 trigger:
   branches:
@@ -11,10 +10,11 @@ pool:
 
 steps:
   - checkout: self
+    ref: main # Explicitly checkout the main branch
 
   - task: AzurePowerShell@5
     displayName: "Run Diagnostic Settings PowerShell Script"
     inputs:
-      azureSubscription: "FreeTrial"
-      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Path relative to the repository root.
+      azureSubscription: "FreeTrial" # Replace with your actual Azure service connection name.
+      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Adjust the path if necessary.
       azurePowerShellVersion: "LatestVersion"
