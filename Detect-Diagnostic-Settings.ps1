@@ -1,37 +1,36 @@
-# Define file paths
-$BasePath = "C:\Users\lenovo\Desktop\Diagnostic"
-$PrevJsonFile = "$BasePath\PreviousDiagSettings.json"
-$CurrentJsonFile = "$BasePath\CurrentDiagSettings.json"
-$ChangeLogFile = "$BasePath\ChangeLog.txt"
-
-# Ensure directory exists
-if (!(Test-Path $BasePath)) {
-    New-Item -ItemType Directory -Path $BasePath -Force | Out-Null
-}
-
-# Connect to Azure
-try {
-    $AzureLogin = Get-AzSubscription -ErrorAction Stop
-    Write-Host "Azure login verified."
-} catch {
-    Write-Host "Not logged into Azure. Attempting login..."
-    Connect-AzAccount | Out-Null
-}
-
-# Retrieve all Azure subscriptions
+# Define file paths for previous and current diagnostic settings
+$PrevJsonFile = "$env:BUILD_ARTIFACTSTAGINGDIRECTORY\PreviousDiagSettings.json"
+$CurrentJsonFile = "$env:BUILD_ARTIFACTSTAGINGDIRECTORY\CurrentDiagSettings.json"
+$ChangeLogFile = "$env:BUILD_ARTIFACTSTAGINGDIRECTORY\ChangeLog.txt"  # File to track changes
+ 
+# Get all Azure Subscriptions
 $Subs = Get-AzSubscription
+if (-not $Subs) {
+    Write-Host "No subscriptions found. Exiting script."
+    exit 1
+}
+ 
 $DiagResults = @()
-
-# Loop through subscriptions and fetch diagnostic settings
+ 
 foreach ($Sub in $Subs) {
     Set-AzContext -SubscriptionId $Sub.Id | Out-Null
     Write-Host "Processing Subscription: $($Sub.Name)"
-
+ 
     $Resources = Get-AzResource
+    if (-not $Resources) {
+        Write-Host "No resources found in subscription: $($Sub.Name)"
+        continue
+    }
+ 
     foreach ($res in $Resources) {
         $DiagSettings = Get-AzDiagnosticSetting -ResourceId $res.ResourceId -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-
+        if (-not $DiagSettings) {
+            Write-Host "No diagnostic settings found for resource: $($res.Name)"
+            continue
+        }
+ 
         foreach ($diag in $DiagSettings) {
+            Write-Host "diag settings: $($diag)"
             $item = [PSCustomObject]@{
                 ResourceName = $res.Name
                 DiagnosticSettingsName = $diag.Name
@@ -47,47 +46,52 @@ foreach ($Sub in $Subs) {
         }
     }
 }
-
-# Save current diagnostic settings
-$DiagResults | ConvertTo-Json -Depth 10 | Set-Content -Path $CurrentJsonFile -Force
+ 
+$DiagResults | ConvertTo-Json -Depth 10 | Set-Content -Path $CurrentJsonFile
 Write-Host "Current diagnostic settings saved to: $CurrentJsonFile"
-
-# Check for previous JSON file
-if (!(Test-Path $PrevJsonFile)) {
+ 
+# Check if the previous file exists and has valid content
+if (Test-Path $PrevJsonFile) {
+    $PreviousDiagResults = Get-Content -Path $PrevJsonFile | ConvertFrom-Json
+    if (-not $PreviousDiagResults) {
+        Write-Host "Previous JSON file exists but is empty. Initializing an empty array."
+        $PreviousDiagResults = @()
+    }
+} else {
     Write-Host "No previous data found. Saving current data as baseline."
     Copy-Item -Path $CurrentJsonFile -Destination $PrevJsonFile -Force
-    exit
+    exit 0
 }
-
-# Load previous and current data safely
-$PreviousDiagResults = if ((Get-Content -Path $PrevJsonFile -Raw) -ne "") { Get-Content -Path $PrevJsonFile -Raw | ConvertFrom-Json } else { @() }
-$CurrentDiagResults = if ((Get-Content -Path $CurrentJsonFile -Raw) -ne "") { Get-Content -Path $CurrentJsonFile -Raw | ConvertFrom-Json } else { @() }
-
-Write-Host "PreviousDiagResults Count: $($PreviousDiagResults.Count)"
-Write-Host "CurrentDiagResults Count: $($CurrentDiagResults.Count)"
-
-# Compare previous and current settings
-if ($PreviousDiagResults.Count -eq 0 -or $CurrentDiagResults.Count -eq 0) {
-    Write-Host "Skipping comparison: One or both JSON files are empty."
+ 
+$CurrentDiagResults = Get-Content -Path $CurrentJsonFile | ConvertFrom-Json
+if (-not $CurrentDiagResults) {
+    Write-Host "Error: Current JSON file is empty. Exiting."
+    exit 1
+}
+ 
+# Compare previous and current data
+$Changes = Compare-Object -ReferenceObject $PreviousDiagResults -DifferenceObject $CurrentDiagResults -Property ResourceName, DiagnosticSettingsName, StorageAccount, EventHub, Workspace, Metrics, Logs, Subscription, ResourceId -PassThru
+ 
+# Process and log changes
+$ChangeDetected = $false
+$ChangeLog = ""
+ 
+foreach ($change in $Changes) {
+    $Action = switch ($change.SideIndicator) {
+        "=>" { "Added" }
+        "<=" { "Removed" }
+        "==" { "Unchanged" }
+    }
+    $ChangeLog += "$($change.ResourceName) - $($change.DiagnosticSettingsName): $Action`n"
+    $ChangeDetected = $true
+}
+ 
+if ($ChangeDetected) {
+    Write-Host "Changes detected. Logging the changes."
+    $ChangeLog | Out-File -FilePath $ChangeLogFile -Force
 } else {
-    $Changes = Compare-Object -ReferenceObject $PreviousDiagResults -DifferenceObject $CurrentDiagResults `
-        -Property ResourceName, DiagnosticSettingsName, StorageAccount, EventHub, Workspace, Metrics, Logs, Subscription, ResourceId -PassThru
-
-    $ChangeLog = ""
-    foreach ($change in $Changes) {
-        $Action = switch ($change.SideIndicator) {
-            "=>" { "Added" }
-            "<=" { "Removed" }
-            "==" { "Unchanged" }
-        }
-        $ChangeLog += "$($change.ResourceName) - $($change.DiagnosticSettingsName): $Action`n"
-    }
-
-    if ($ChangeLog) {
-        Write-Host "Changes detected. Logging changes."
-        $ChangeLog | Out-File -FilePath $ChangeLogFile -Force
-    }
+    Write-Host "No changes detected."
 }
-
-# Update previous settings file
+ 
+# Save current data as the new previous data
 Copy-Item -Path $CurrentJsonFile -Destination $PrevJsonFile -Force
