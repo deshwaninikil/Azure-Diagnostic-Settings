@@ -1,23 +1,22 @@
-name: Deploy to Azure
-
-on:
-  push:
-    branches:
+# Trigger the pipeline on pushes to the main branch.
+trigger:
+  branches:
+    include:
       - main
 
-jobs:
-  deploy:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+# Use the latest Windows agent.
+pool:
+  vmImage: "windows-latest"
 
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+steps:
+  # Step 1: Checkout the code from your repository.
+  - checkout: self
 
-      - name: Run PowerShell Script
-        shell: pwsh
-        run: |
-          .\scripts\Detect-Diagnostic-Settings.ps1
+  # Step 2: Run the PowerShell script using the AzurePowerShell task.
+  # Make sure you have created an Azure service connection in Azure DevOps with the name specified in azureSubscription.
+  - task: AzurePowerShell@5
+    displayName: "Run Diagnostic Settings PowerShell Script"
+    inputs:
+      azureSubscription: "YourServiceConnectionName" # Replace with your service connection name.
+      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Adjust the path to where your script is located.
+      azurePowerShellVersion: "LatestVersion"
