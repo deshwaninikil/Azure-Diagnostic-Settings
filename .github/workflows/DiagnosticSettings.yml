@@ -3,11 +3,12 @@ name: Deploy to Azure # Workflow name
 on:
   push:
     branches:
-      - main # Runs on push to main branch
+      - main # Runs when code is pushed to 'main' branch
 
 jobs:
   deploy:
     runs-on: windows-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
