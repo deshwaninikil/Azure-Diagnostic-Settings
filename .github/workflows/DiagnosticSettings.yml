@@ -1,18 +1,16 @@
-name: Deploy to Azure
+name: Deploy to Azure # Name of the workflow
 
 on:
   push:
     branches:
-      - main
+      - main # Runs when pushing to the main branch
 
 jobs:
   deploy:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          ref: main # Ensure the main branch is checked out
+        uses: actions/checkout@v3 # Correct syntax for checking out code
 
       - name: Azure Login
         uses: azure/login@v1
