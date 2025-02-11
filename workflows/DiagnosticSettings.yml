@@ -10,7 +10,7 @@ pool:
 
 steps:
   - checkout: self
-    ref: main # Explicitly checkout the main branch
+    with: main # Explicitly checkout the main branch
 
   - task: AzurePowerShell@5
     displayName: "Run Diagnostic Settings PowerShell Script"
