@@ -1,20 +1,25 @@
-# 20250211.3 • Updated YAML for Diagnostic Settings Pipeline
+name: Deploy to Azure
 
-trigger:
-  branches:
-    include:
+on:
+  push:
+    branches:
       - main
 
-pool:
-  vmImage: "windows-latest"
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: main # Ensure the main branch is checked out
 
-steps:
-  - checkout: self
-    with: main # Explicitly checkout the main branch
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-  - task: AzurePowerShell@5
-    displayName: "Run Diagnostic Settings PowerShell Script"
-    inputs:
-      azureSubscription: "FreeTrial" # Replace with your actual Azure service connection name.
-      ScriptPath: "scripts/Detect-Diagnostic-Settings.ps1" # Adjust the path if necessary.
-      azurePowerShellVersion: "LatestVersion"
+      - name: Run PowerShell Script
+        shell: pwsh
+        run: |
+          .\scripts\Detect-Diagnostic-Settings.ps1
