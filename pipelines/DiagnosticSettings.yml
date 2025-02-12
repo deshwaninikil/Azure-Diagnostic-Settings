@@ -43,7 +43,7 @@ stages:
           - task: AzurePowerShell@5
             displayName: "Run Diagnostic Settings JSON"
             inputs:
-              azureSubscription: Azure-Diagnostic-Settings
+              azureSubscription: MyAzureServiceConnection
               ScriptPath: $(System.DefaultWorkingDirectory)/Azure-Diagnostic-Settings/scripts/Detect-Diagnostic-Settings.ps1
               azurePowerShellVersion: LatestVersion
 
