@@ -23,7 +23,7 @@ stages:
             inputs:
               targetType: "inline"
               script: |
-                $artifactPath = "$(Build.ArtifactStagingDirectory)\DiagnosticsSettings"
+                $artifactPath = "$(Build.ArtifactStagingDirectory)\Azure-Diagnostic-Settings"
                 if (!(Test-Path $artifactPath)) {
                   Write-Host "##vso[task.setvariable variable=ArtifactExists;]false"
                 } else {
@@ -36,7 +36,7 @@ stages:
             condition: and(succeeded(), eq(variables['ArtifactExists'], 'true'))
             inputs:
               buildType: "current"
-              artifactName: "DiagnosticsSettings"
+              artifactName: "Azure-Diagnostic-Settings"
               downloadPath: "$(Build.ArtifactStagingDirectory)"
 
           # Step 3: Run PowerShell Script to Compare Settings
@@ -44,12 +44,12 @@ stages:
             displayName: "Run Diagnostic Settings JSON"
             inputs:
               azureSubscription: $(service_connection)
-              ScriptPath: $(System.DefaultWorkingDirectory)/azure-devops/scripts/DiagnosticSettings.ps1
+              ScriptPath: $(System.DefaultWorkingDirectory)/Azure-Diagnostic-Settings/scripts/Detect-Diagnostic-Settings.ps1
               azurePowerShellVersion: LatestVersion
 
           # Step 4: Publish the new JSON file for future runs
           - task: PublishBuildArtifacts@1
             displayName: "Save Current Diagnostic Settings JSON for Next Run"
             inputs:
-              artifactName: "DiagnosticsSettings"
+              artifactName: "Azure-Diagnostic-Settings"
               pathToPublish: "$(Build.ArtifactStagingDirectory)"
