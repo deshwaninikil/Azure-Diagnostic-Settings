@@ -47,7 +47,19 @@ stages:
               ScriptPath: $(System.DefaultWorkingDirectory)/Azure-Diagnostic-Settings/scripts/Detect-Diagnostic-Settings.ps1
               azurePowerShellVersion: LatestVersion
 
-          # Step 4: Publish the new JSON file for future runs
+          # Step 4: Validate JSON File
+          - task: PowerShell@2
+            displayName: "Validate JSON File"
+            inputs:
+              targetType: "inline"
+              script: |
+                $filePath = "$(Build.ArtifactStagingDirectory)\CurrentDiagSettings.json"
+                if (!(Test-Path $filePath) -or ((Get-Content $filePath) -eq "")) {
+                  Write-Host "##vso[task.logissue type=error] CurrentDiagSettings.json is missing or empty!"
+                  exit 1
+                }
+
+          # Step 5: Publish the new JSON file for future runs
           - task: PublishBuildArtifacts@1
             displayName: "Save Current Diagnostic Settings JSON for Next Run"
             inputs:
